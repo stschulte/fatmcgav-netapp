@@ -1,32 +1,24 @@
-require 'puppet/util/network_device'
 require 'puppet/util/network_device/netapp/facts'
 require 'puppet/util/network_device/netapp/NaServer'
-require 'yaml'
+require 'uri'
 
 class Puppet::Util::NetworkDevice::Netapp::Device
 
-  attr_accessor :filer, :transport
+  attr_accessor :url, :transport, :vfiler
   
-  def initialize(filer)
+  def initialize(url, option = {})
 
-    Puppet.debug("Puppet::Device::Netapp: connecting to Netapp device #{filer}.")
-    #This should work to find the configdir
-    configdir = Puppet[:confdir]
-    Puppet.debug("Puppet::Device::Netapp: configdir is #{configdir}.")
+    @url = URI.parse(url)
 
-    configfile = File.read(configdir+"/netapp.yml")
-    filerconfig = YAML.load(configfile)[filer]
-    username = filerconfig[:user]
-    password = filerconfig[:password]
-    if(username == nil || password == nil)
-      raise Puppet::Error, "Puppet::Device::Netapp username or password for #{filer} are null."
-    else
-      Puppet.debug("Puppet::Device::Netapp: config read. User = #{username}.")
+    raise Pupper::Error, "you have to define a username for filer #{@url.host}" unless @url.user
+    raise Pupper::Error, "you have to define a password for filer #{@url.host}" unless @url.password
+    raise Pupper::Error, "schema must be https right now" unless @url.scheme == 'https'
+
+    @transport ||= NaServer.new(@url.host, 1, 13)
+    @transport.set_admin_user(@url.user, @url.password)
+    if @url.scheme == 'https'
+      @transport.set_transport_type("HTTPS")
     end
-
-    @transport ||= NaServer.new(filer, 1, 13)
-    @transport.set_admin_user(username, password)
-    @transport.set_transport_type("HTTPS")
     
     # Test interface
     result = @transport.invoke("system-get-version")
@@ -42,9 +34,7 @@ class Puppet::Util::NetworkDevice::Netapp::Device
   def facts
     @facts ||= Puppet::Util::NetworkDevice::Netapp::Facts.new(@transport)
     facts = @facts.retreive
-    
     facts
-  
   end
 
 end
