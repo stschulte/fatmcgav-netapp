@@ -10,6 +10,12 @@ class Puppet::Util::NetworkDevice::Netapp::Device
 
     @url = URI.parse(url)
 
+    if @url.path == '' or @url.path == '/'
+      @vfiler = nil
+    else
+      @vfiler = /\/(.*)/.match(@url.path).captures[0]
+    end
+
     raise Pupper::Error, "you have to define a username for filer #{@url.host}" unless @url.user
     raise Pupper::Error, "you have to define a password for filer #{@url.host}" unless @url.password
     raise Pupper::Error, "schema must be https right now" unless @url.scheme == 'https'
@@ -18,6 +24,9 @@ class Puppet::Util::NetworkDevice::Netapp::Device
     @transport.set_admin_user(@url.user, @url.password)
     if @url.scheme == 'https'
       @transport.set_transport_type("HTTPS")
+    end
+    if @vfiler
+      @transport.set_vfiler(@vfiler)
     end
     
     # Test interface
@@ -34,6 +43,7 @@ class Puppet::Util::NetworkDevice::Netapp::Device
   def facts
     @facts ||= Puppet::Util::NetworkDevice::Netapp::Facts.new(@transport)
     facts = @facts.retreive
+    facts['vfiler'] = @vfiler if @vfiler
     facts
   end
 
